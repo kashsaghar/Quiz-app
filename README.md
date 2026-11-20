@@ -90,7 +90,7 @@ Visit `http://localhost:5173`, sign up as a teacher, and create your first quiz.
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 5. Click **Deploy**. Vercel's free tier covers this comfortably.
-6. Because this is a single-page app with client-side routes (`/quiz/:quizId`, `/results/:quizId`), Vercel's Vite preset already rewrites all paths to `index.html` — no extra `vercel.json` is required. If you ever see a 404 on a direct link/refresh, add a `vercel.json` with a catch-all rewrite to `/index.html`.
+6. Because this is a single-page app with client-side routes (`/quiz/:quizId`, `/results/:quizId`), a `vercel.json` with a catch-all rewrite to `/index.html` is included in this repo — without it, directly opening a student quiz link (rather than navigating to it from within the app) would 404, since Vercel would otherwise look for a literal file at that path.
 
 ### Backend → Supabase
 
