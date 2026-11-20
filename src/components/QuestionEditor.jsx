@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { Trash2, Plus, ImageOff, Undo2 } from 'lucide-react'
+import { Trash2, Plus, ImageOff, ImagePlus, Undo2 } from 'lucide-react'
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -7,7 +7,7 @@ export default function QuestionEditor({ question, index, onChange, onDelete }) 
   const optionKeys = Object.keys(question.options)
 
   // question.diagramBlob is a local Blob (auto-cropped from an uploaded PDF,
-  // not yet uploaded to storage) -- it needs an object URL to preview.
+  // or picked by the teacher) -- it needs an object URL to preview.
   // question.imageUrl is already a real hosted URL (e.g. after a save/reload)
   // and needs no conversion.
   const objectUrl = useMemo(
@@ -59,6 +59,15 @@ export default function QuestionEditor({ question, index, onChange, onDelete }) 
       removedImageUrl: null,
     })
 
+  const uploadImage = (file) =>
+    onChange({
+      ...question,
+      diagramBlob: file,
+      imageUrl: null,
+      removedDiagramBlob: null,
+      removedImageUrl: null,
+    })
+
   return (
     <div className={`rounded-xl border p-4 ${question.correctOption ? 'border-slate-200 bg-white' : 'border-amber-300 bg-amber-50'}`}>
       <div className="flex items-start justify-between gap-3">
@@ -82,11 +91,9 @@ export default function QuestionEditor({ question, index, onChange, onDelete }) 
         </button>
       </div>
 
-      {imageSrc && (
+      {imageSrc ? (
         <div className="ml-9 mt-3">
-          <p className="mb-1 text-xs font-medium text-slate-500">
-            Auto-detected diagram/figure — check it's correct and relevant:
-          </p>
+          <p className="mb-1 text-xs font-medium text-slate-500">Diagram/figure for this question:</p>
           <div className="relative inline-block max-w-full rounded-lg border border-slate-200 bg-white p-2">
             <img src={imageSrc} alt="Question diagram" className="max-h-64 max-w-full rounded" />
             <button
@@ -98,20 +105,46 @@ export default function QuestionEditor({ question, index, onChange, onDelete }) 
               <ImageOff className="h-3.5 w-3.5" />
             </button>
           </div>
+          <label className="mt-1.5 flex w-fit cursor-pointer items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800">
+            <ImagePlus className="h-3.5 w-3.5" /> Replace with your own image
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.[0]) uploadImage(e.target.files[0])
+                e.target.value = ''
+              }}
+            />
+          </label>
         </div>
-      )}
-
-      {!imageSrc && (question.removedDiagramBlob || question.removedImageUrl) && (
-        <div className="ml-9 mt-3 flex items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          <ImageOff className="h-3.5 w-3.5 shrink-0" />
-          Image removed.
-          <button
-            type="button"
-            onClick={undoRemoveImage}
-            className="flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-800"
-          >
-            <Undo2 className="h-3.5 w-3.5" /> Undo
-          </button>
+      ) : (
+        <div className="ml-9 mt-3 space-y-1.5">
+          {(question.removedDiagramBlob || question.removedImageUrl) && (
+            <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+              <ImageOff className="h-3.5 w-3.5 shrink-0" />
+              Image removed.
+              <button
+                type="button"
+                onClick={undoRemoveImage}
+                className="flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-800"
+              >
+                <Undo2 className="h-3.5 w-3.5" /> Undo
+              </button>
+            </div>
+          )}
+          <label className="flex w-fit cursor-pointer items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800">
+            <ImagePlus className="h-3.5 w-3.5" /> Add an image for this question (optional)
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.[0]) uploadImage(e.target.files[0])
+                e.target.value = ''
+              }}
+            />
+          </label>
         </div>
       )}
 

@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { parseQuizText, makeBlankQuestion } from '../utils/quizParser'
 import { extractQuizFromPdf } from '../utils/pdfQuizExtractor'
 import { useMarkSchemeUpload } from '../hooks/useMarkSchemeUpload'
+import { uploadDiagramImages } from '../utils/diagramUpload'
 import QuizEditorForm from '../components/QuizEditorForm'
 
 export default function CreateQuiz() {
@@ -137,28 +138,9 @@ export default function CreateQuiz() {
       const { error: answersError } = await supabase.from('quiz_answers').insert(answerRows)
       if (answersError) throw answersError
 
-      // Diagram images auto-cropped from an uploaded PDF exist only as
-      // in-memory Blobs until now -- upload each one to storage and point
-      // the question row at the resulting public URL.
-      const uploads = questions
-        .map((q, index) => ({ blob: q.diagramBlob, row: byOrder.get(index) }))
-        .filter((u) => u.blob)
-        .map(async ({ blob, row }) => {
-          const path = `${quiz.id}/${row.id}.png`
-          const { error: uploadError } = await supabase.storage
-            .from('quiz-diagrams')
-            .upload(path, blob, { contentType: 'image/png' })
-          if (uploadError) throw uploadError
-
-          const { data: publicUrlData } = supabase.storage.from('quiz-diagrams').getPublicUrl(path)
-          const { error: updateError } = await supabase
-            .from('questions')
-            .update({ image_url: publicUrlData.publicUrl })
-            .eq('id', row.id)
-          if (updateError) throw updateError
-        })
-
-      await Promise.all(uploads)
+      // Diagram images (auto-cropped from an uploaded PDF, or picked by the
+      // teacher) exist only as in-memory Blobs until now -- upload each one.
+      await uploadDiagramImages(questions, quiz.id, byOrder)
 
       navigate('/dashboard')
     } catch (err) {

@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { makeBlankQuestion } from '../utils/quizParser'
 import { useMarkSchemeUpload } from '../hooks/useMarkSchemeUpload'
+import { uploadDiagramImages } from '../utils/diagramUpload'
 import QuizEditorForm from '../components/QuizEditorForm'
 import Spinner from '../components/Spinner'
 
@@ -157,27 +158,9 @@ export default function EditQuiz() {
       const { error: answersError } = await supabase.from('quiz_answers').insert(answerRows)
       if (answersError) throw answersError
 
-      // A freshly-attached diagram (e.g. a question added by hand after the
-      // fact) could in principle carry a local Blob -- upload any that do.
-      const uploads = questions
-        .map((q, index) => ({ blob: q.diagramBlob, row: byOrder.get(index) }))
-        .filter((u) => u.blob)
-        .map(async ({ blob, row }) => {
-          const path = `${quizId}/${row.id}.png`
-          const { error: uploadError } = await supabase.storage
-            .from('quiz-diagrams')
-            .upload(path, blob, { contentType: 'image/png' })
-          if (uploadError) throw uploadError
-
-          const { data: publicUrlData } = supabase.storage.from('quiz-diagrams').getPublicUrl(path)
-          const { error: updateError } = await supabase
-            .from('questions')
-            .update({ image_url: publicUrlData.publicUrl })
-            .eq('id', row.id)
-          if (updateError) throw updateError
-        })
-
-      await Promise.all(uploads)
+      // A freshly-attached diagram (teacher-uploaded, or a newly added
+      // question) exists only as a local Blob until now -- upload it.
+      await uploadDiagramImages(questions, quizId, byOrder)
 
       navigate('/dashboard')
     } catch (err) {
