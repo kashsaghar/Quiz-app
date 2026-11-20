@@ -124,7 +124,10 @@ export function parseQuizText(rawText) {
     warnings.push(`${missingAnswers} question(s) have no detected answer — please select the correct option manually.`)
   }
 
-  const normalized = questions.map(({ number: _number, ...q }) => q)
+  // `number` is kept (as `sourceNumber`) rather than stripped, so a
+  // separately-uploaded marking scheme can later match answers back to the
+  // right question even if some were edited/reordered/deleted in review.
+  const normalized = questions.map(({ number, ...q }) => ({ ...q, sourceNumber: number }))
 
   if (normalized.length === 0) {
     warnings.push('No questions could be detected. Make sure questions are numbered (e.g. "1.") and options are labeled (e.g. "A)").')
@@ -140,5 +143,6 @@ export function makeBlankQuestion() {
     options: { A: '', B: '', C: '', D: '' },
     correctOption: null,
     imageUrl: null,
+    sourceNumber: null,
   }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { Trash2, Plus, ImageOff } from 'lucide-react'
+import { Trash2, Plus, ImageOff, Undo2 } from 'lucide-react'
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -38,7 +38,26 @@ export default function QuestionEditor({ question, index, onChange, onDelete }) 
     onChange({ ...question, options: rest, correctOption })
   }
 
-  const removeImage = () => onChange({ ...question, diagramBlob: null, imageUrl: null })
+  // Removing an image doesn't discard it -- it's stashed on the question so
+  // an accidental click can be undone, since this is the only copy of an
+  // auto-cropped diagram (there's no server copy yet at this review stage).
+  const removeImage = () =>
+    onChange({
+      ...question,
+      diagramBlob: null,
+      imageUrl: null,
+      removedDiagramBlob: question.diagramBlob,
+      removedImageUrl: question.imageUrl,
+    })
+
+  const undoRemoveImage = () =>
+    onChange({
+      ...question,
+      diagramBlob: question.removedDiagramBlob,
+      imageUrl: question.removedImageUrl,
+      removedDiagramBlob: null,
+      removedImageUrl: null,
+    })
 
   return (
     <div className={`rounded-xl border p-4 ${question.correctOption ? 'border-slate-200 bg-white' : 'border-amber-300 bg-amber-50'}`}>
@@ -79,6 +98,20 @@ export default function QuestionEditor({ question, index, onChange, onDelete }) 
               <ImageOff className="h-3.5 w-3.5" />
             </button>
           </div>
+        </div>
+      )}
+
+      {!imageSrc && (question.removedDiagramBlob || question.removedImageUrl) && (
+        <div className="ml-9 mt-3 flex items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          <ImageOff className="h-3.5 w-3.5 shrink-0" />
+          Image removed.
+          <button
+            type="button"
+            onClick={undoRemoveImage}
+            className="flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            <Undo2 className="h-3.5 w-3.5" /> Undo
+          </button>
         </div>
       )}
 

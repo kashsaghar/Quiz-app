@@ -351,8 +351,14 @@ export async function extractQuizFromPdf(file, { onProgress } = {}) {
     warnings.push('No questions could be detected in this PDF.')
   }
 
+  // `number` is kept (as `sourceNumber`) rather than stripped, so a
+  // separately-uploaded marking scheme can later match answers back to the
+  // right question even if some were edited/reordered/deleted in review.
   const normalized = questions.map(
-    ({ number: _number, pageNum: _pageNum, stemTopY: _stemTopY, firstOptionY: _firstOptionY, lastLineY: _lastLineY, lastOptionLetter: _lastOptionLetter, lastOptionPage: _lastOptionPage, needsDiagram: _needsDiagram, ...q }) => q
+    ({ number, pageNum: _pageNum, stemTopY: _stemTopY, firstOptionY: _firstOptionY, lastLineY: _lastLineY, lastOptionLetter: _lastOptionLetter, lastOptionPage: _lastOptionPage, needsDiagram: _needsDiagram, ...q }) => ({
+      ...q,
+      sourceNumber: number,
+    })
   )
 
   return { questions: normalized, warnings, usedOcr }

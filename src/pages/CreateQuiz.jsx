@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload, FileText, Loader2, ArrowLeft, Plus, AlertTriangle } from 'lucide-react'
+import { Upload, FileText, Loader2, ArrowLeft, Plus, AlertTriangle, CheckCircle2, ClipboardCheck } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { parseQuizText, makeBlankQuestion } from '../utils/quizParser'
 import { extractQuizFromPdf } from '../utils/pdfQuizExtractor'
+import { extractAnswerKeyFromFile } from '../utils/markSchemeParser'
 import QuestionEditor from '../components/QuestionEditor'
 
 export default function CreateQuiz() {
@@ -24,6 +25,9 @@ export default function CreateQuiz() {
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+
+  const [msParsing, setMsParsing] = useState(false)
+  const [msResult, setMsResult] = useState(null) // { type: 'success' | 'error', text }
 
   const applyExtracted = (parsed, parserWarnings, extraWarnings = []) => {
     setQuestions(parsed)
@@ -72,6 +76,36 @@ export default function CreateQuiz() {
     setParseError('')
     const { questions: parsed, warnings: w } = parseQuizText(rawText)
     applyExtracted(parsed, w)
+  }
+
+  const handleMarkSchemeFile = async (file) => {
+    setMsParsing(true)
+    setMsResult(null)
+    try {
+      const { answers, warnings: msWarnings } = await extractAnswerKeyFromFile(file)
+
+      const numbered = questions.filter((q) => q.sourceNumber != null)
+      const applied = numbered.filter((q) => q.sourceNumber in answers).length
+      const unmatched = numbered.length - applied
+
+      setQuestions((prev) =>
+        prev.map((q) => (q.sourceNumber != null && q.sourceNumber in answers ? { ...q, correctOption: answers[q.sourceNumber] } : q))
+      )
+
+      const parts = []
+      if (applied > 0) parts.push(`Applied ${applied} answer${applied === 1 ? '' : 's'}.`)
+      if (unmatched > 0) parts.push(`${unmatched} question${unmatched === 1 ? '' : 's'} had no matching answer in this file.`)
+      if (applied === 0) parts.push('No answers could be matched to your questions.')
+
+      setMsResult({
+        type: applied > 0 ? 'success' : 'error',
+        text: [...parts, ...msWarnings].join(' '),
+      })
+    } catch (err) {
+      setMsResult({ type: 'error', text: 'Could not read that file: ' + err.message })
+    } finally {
+      setMsParsing(false)
+    }
   }
 
   const updateQuestion = (index, updated) => {
@@ -248,6 +282,42 @@ export default function CreateQuiz() {
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <h2 className="mb-1 flex items-center gap-2 font-semibold text-slate-900">
+                <ClipboardCheck className="h-4 w-4" /> Apply Marking Scheme (optional)
+              </h2>
+              <p className="mb-3 text-xs text-slate-500">
+                Have a separate answer key / marking scheme for this question paper? Upload it to auto-fill correct
+                answers below, matched by question number.
+              </p>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 py-4 text-sm text-slate-500 hover:border-indigo-300 hover:bg-indigo-50/30">
+                <FileText className="h-4 w-4 text-slate-400" />
+                {msParsing ? 'Reading marking scheme…' : 'Click to choose a .pdf or .txt marking scheme'}
+                <input
+                  type="file"
+                  accept=".pdf,.txt,text/plain,application/pdf"
+                  className="hidden"
+                  disabled={msParsing}
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) handleMarkSchemeFile(e.target.files[0])
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              {msResult && (
+                <p
+                  className={`mt-2 flex items-start gap-1.5 text-sm ${msResult.type === 'success' ? 'text-emerald-700' : 'text-amber-700'}`}
+                >
+                  {msResult.type === 'success' ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  )}
+                  {msResult.text}
+                </p>
+              )}
             </div>
 
             {warnings.length > 0 && (
