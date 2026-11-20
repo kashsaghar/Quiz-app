@@ -100,6 +100,8 @@ Already deployed — Supabase's free tier (500MB database, 50k monthly active us
 
 **As a teacher:** Sign up → Dashboard → "New Quiz" → upload a `.pdf`/`.txt` or paste text → the parser detects numbered questions (`1.`, `2.`), options (`A)`–`D)` or `a.`–`d.`), and an answer key (`Answers: 1-A, 2-C` or inline `Answer: B`) → review/edit/add/delete questions and confirm each correct answer → set title & time limit → Save. Copy the student link from the dashboard and share it.
 
+If a PDF page has no real text layer (a scanned page, or a PDF made entirely of images), `pdfText.js` automatically falls back to OCR via [Tesseract.js](https://github.com/naptha/tesseract.js) — it renders that page to an image and reads it, entirely in the browser (no server, no API key, no cost). This is slower and less accurate than a real text layer, so the review step flags it with a warning asking the teacher to double-check every question. Pages with a normal text layer skip OCR entirely and stay fast.
+
 **As a student:** Open the link → enter name (+ optional roll number) → Start Test → answer questions until time runs out or you submit manually → see a confirmation screen (no scores). Refreshing mid-test resumes exactly where you left off (same timer, same answers) because progress is cached in `localStorage`, keyed by quiz + name.
 
 **Parser format reference** (also shown as a placeholder in the paste box):

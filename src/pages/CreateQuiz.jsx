@@ -14,6 +14,7 @@ export default function CreateQuiz() {
   const [step, setStep] = useState('input') // 'input' | 'review'
   const [rawText, setRawText] = useState('')
   const [parsing, setParsing] = useState(false)
+  const [parsingStatus, setParsingStatus] = useState('')
   const [warnings, setWarnings] = useState([])
   const [parseError, setParseError] = useState('')
 
@@ -24,29 +25,44 @@ export default function CreateQuiz() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
-  const runParse = (text) => {
+  const runParse = (text, extraWarnings = []) => {
     const { questions: parsed, warnings: w } = parseQuizText(text)
     setQuestions(parsed)
-    setWarnings(w)
+    setWarnings([...extraWarnings, ...w])
     setStep('review')
   }
 
   const handleFile = async (file) => {
     setParseError('')
     setParsing(true)
+    setParsingStatus('Reading file…')
     try {
       let text
+      const extraWarnings = []
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        text = await extractTextFromPdf(file)
+        const result = await extractTextFromPdf(file, {
+          onProgress: ({ stage, page, totalPages }) => {
+            if (stage === 'reading') setParsingStatus(`Reading page ${page} of ${totalPages}…`)
+            else if (stage === 'ocr-init') setParsingStatus('This PDF looks scanned — loading OCR engine…')
+            else if (stage === 'ocr') setParsingStatus(`Running OCR on page ${page} of ${totalPages}… (this can take a while)`)
+          },
+        })
+        text = result.text
+        if (result.usedOcr) {
+          extraWarnings.push(
+            'This file contains scanned/image-only pages — OCR was used to read them, which is less accurate than a real text layer. Please double-check every question, option, and answer carefully.'
+          )
+        }
       } else {
         text = await file.text()
       }
       setRawText(text)
-      runParse(text)
+      runParse(text, extraWarnings)
     } catch (err) {
       setParseError('Could not read that file: ' + err.message)
     } finally {
       setParsing(false)
+      setParsingStatus('')
     }
   }
 
@@ -146,7 +162,7 @@ export default function CreateQuiz() {
               </h2>
               <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-10 text-sm text-slate-500 hover:border-indigo-300 hover:bg-indigo-50/30">
                 <FileText className="mb-2 h-6 w-6 text-slate-400" />
-                {parsing ? 'Reading file…' : 'Click to choose a .pdf or .txt file'}
+                {parsing ? parsingStatus || 'Reading file…' : 'Click to choose a .pdf or .txt file'}
                 <input
                   type="file"
                   accept=".pdf,.txt,text/plain,application/pdf"
