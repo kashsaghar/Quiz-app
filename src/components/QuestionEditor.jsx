@@ -1,9 +1,22 @@
-import { Trash2, Plus } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { Trash2, Plus, ImageOff } from 'lucide-react'
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
 export default function QuestionEditor({ question, index, onChange, onDelete }) {
   const optionKeys = Object.keys(question.options)
+
+  // question.diagramBlob is a local Blob (auto-cropped from an uploaded PDF,
+  // not yet uploaded to storage) -- it needs an object URL to preview.
+  // question.imageUrl is already a real hosted URL (e.g. after a save/reload)
+  // and needs no conversion.
+  const objectUrl = useMemo(
+    () => (question.diagramBlob ? URL.createObjectURL(question.diagramBlob) : null),
+    [question.diagramBlob]
+  )
+  useEffect(() => () => objectUrl && URL.revokeObjectURL(objectUrl), [objectUrl])
+
+  const imageSrc = objectUrl || question.imageUrl
 
   const updateText = (text) => onChange({ ...question, text })
 
@@ -24,6 +37,8 @@ export default function QuestionEditor({ question, index, onChange, onDelete }) 
     const correctOption = question.correctOption === letter ? null : question.correctOption
     onChange({ ...question, options: rest, correctOption })
   }
+
+  const removeImage = () => onChange({ ...question, diagramBlob: null, imageUrl: null })
 
   return (
     <div className={`rounded-xl border p-4 ${question.correctOption ? 'border-slate-200 bg-white' : 'border-amber-300 bg-amber-50'}`}>
@@ -47,6 +62,25 @@ export default function QuestionEditor({ question, index, onChange, onDelete }) 
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
+
+      {imageSrc && (
+        <div className="ml-9 mt-3">
+          <p className="mb-1 text-xs font-medium text-slate-500">
+            Auto-detected diagram/figure — check it's correct and relevant:
+          </p>
+          <div className="relative inline-block max-w-full rounded-lg border border-slate-200 bg-white p-2">
+            <img src={imageSrc} alt="Question diagram" className="max-h-64 max-w-full rounded" />
+            <button
+              type="button"
+              onClick={removeImage}
+              title="Remove this image"
+              className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-500 shadow ring-1 ring-slate-200 hover:bg-red-50 hover:text-red-600"
+            >
+              <ImageOff className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 ml-9 space-y-2">
         {optionKeys.map((letter) => (

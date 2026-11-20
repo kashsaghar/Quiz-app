@@ -4,7 +4,7 @@ import { Upload, FileText, Loader2, ArrowLeft, Plus, AlertTriangle } from 'lucid
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { parseQuizText, makeBlankQuestion } from '../utils/quizParser'
-import { extractTextFromPdf } from '../utils/pdfText'
+import { extractQuizFromPdf } from '../utils/pdfQuizExtractor'
 import QuestionEditor from '../components/QuestionEditor'
 
 export default function CreateQuiz() {
@@ -25,10 +25,9 @@ export default function CreateQuiz() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
-  const runParse = (text, extraWarnings = []) => {
-    const { questions: parsed, warnings: w } = parseQuizText(text)
+  const applyExtracted = (parsed, parserWarnings, extraWarnings = []) => {
     setQuestions(parsed)
-    setWarnings([...extraWarnings, ...w])
+    setWarnings([...extraWarnings, ...parserWarnings])
     setStep('review')
   }
 
@@ -37,27 +36,26 @@ export default function CreateQuiz() {
     setParsing(true)
     setParsingStatus('Reading file…')
     try {
-      let text
-      const extraWarnings = []
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        const result = await extractTextFromPdf(file, {
+        const result = await extractQuizFromPdf(file, {
           onProgress: ({ stage, page, totalPages }) => {
             if (stage === 'reading') setParsingStatus(`Reading page ${page} of ${totalPages}…`)
             else if (stage === 'ocr-init') setParsingStatus('This PDF looks scanned — loading OCR engine…')
             else if (stage === 'ocr') setParsingStatus(`Running OCR on page ${page} of ${totalPages}… (this can take a while)`)
           },
         })
-        text = result.text
-        if (result.usedOcr) {
-          extraWarnings.push(
-            'This file contains scanned/image-only pages — OCR was used to read them, which is less accurate than a real text layer. Please double-check every question, option, and answer carefully.'
-          )
-        }
+        const extraWarnings = result.usedOcr
+          ? [
+              'This file contains scanned/image-only pages — OCR was used to read them, which is less accurate than a real text layer. Please double-check every question, option, and answer carefully.',
+            ]
+          : []
+        applyExtracted(result.questions, result.warnings, extraWarnings)
       } else {
-        text = await file.text()
+        const text = await file.text()
+        setRawText(text)
+        const { questions: parsed, warnings: w } = parseQuizText(text)
+        applyExtracted(parsed, w)
       }
-      setRawText(text)
-      runParse(text, extraWarnings)
     } catch (err) {
       setParseError('Could not read that file: ' + err.message)
     } finally {
@@ -72,7 +70,8 @@ export default function CreateQuiz() {
       return
     }
     setParseError('')
-    runParse(rawText)
+    const { questions: parsed, warnings: w } = parseQuizText(rawText)
+    applyExtracted(parsed, w)
   }
 
   const updateQuestion = (index, updated) => {
@@ -134,6 +133,29 @@ export default function CreateQuiz() {
 
       const { error: answersError } = await supabase.from('quiz_answers').insert(answerRows)
       if (answersError) throw answersError
+
+      // Diagram images auto-cropped from an uploaded PDF exist only as
+      // in-memory Blobs until now -- upload each one to storage and point
+      // the question row at the resulting public URL.
+      const uploads = questions
+        .map((q, index) => ({ blob: q.diagramBlob, row: byOrder.get(index) }))
+        .filter((u) => u.blob)
+        .map(async ({ blob, row }) => {
+          const path = `${quiz.id}/${row.id}.png`
+          const { error: uploadError } = await supabase.storage
+            .from('quiz-diagrams')
+            .upload(path, blob, { contentType: 'image/png' })
+          if (uploadError) throw uploadError
+
+          const { data: publicUrlData } = supabase.storage.from('quiz-diagrams').getPublicUrl(path)
+          const { error: updateError } = await supabase
+            .from('questions')
+            .update({ image_url: publicUrlData.publicUrl })
+            .eq('id', row.id)
+          if (updateError) throw updateError
+        })
+
+      await Promise.all(uploads)
 
       navigate('/dashboard')
     } catch (err) {

@@ -26,6 +26,13 @@ export default function ActiveTest({ quiz, questions, answers, onAnswer, endTime
             <p className="mb-3 text-sm font-medium text-slate-900">
               {index + 1}. {q.question_text}
             </p>
+            {q.image_url && (
+              <img
+                src={q.image_url}
+                alt={`Diagram for question ${index + 1}`}
+                className="mb-3 max-h-80 max-w-full rounded-lg border border-slate-200"
+              />
+            )}
             <div className="space-y-2">
               {Object.entries(q.options).map(([letter, text]) => (
                 <label

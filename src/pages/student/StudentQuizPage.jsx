@@ -40,7 +40,7 @@ export default function StudentQuizPage() {
 
       const { data: questionRows, error: questionsError } = await supabase
         .from('questions')
-        .select('id, question_text, options, order_index')
+        .select('id, question_text, options, image_url, order_index')
         .eq('quiz_id', quizId)
         .order('order_index', { ascending: true })
 

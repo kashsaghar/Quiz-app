@@ -17,11 +17,13 @@ function nextId() {
   return `tmp-${Date.now()}-${idCounter}`
 }
 
-const QUESTION_START = /^\s*(?:q\.?\s*)?(\d{1,3})\s*[.)-]\s+(.*)$/i
-const OPTION_LINE = /^\s*\(?([a-dA-D])\)?\s*[.):-]\s+(.*)$/
-const ANSWER_KEY_HEADER = /^\s*answer(?:s)?\s*(?:key)?\s*:?\s*$/i
-const INLINE_ANSWER = /^\s*(?:ans(?:wer)?)\s*[:.-]\s*\(?([a-dA-D])\)?\s*$/i
-const ANSWER_LIST_PAIR = /(\d{1,3})\s*[-:.]\s*\(?([a-dA-D])\)?/gi
+// Exported so the PDF-aware extractor (pdfQuizExtractor.js) can classify
+// page-by-page lines with the exact same rules used here for pasted text.
+export const QUESTION_START = /^\s*(?:q\.?\s*)?(\d{1,3})\s*[.)-]\s+(.*)$/i
+export const OPTION_LINE = /^\s*\(?([a-dA-D])\)?\s*[.):-]\s+(.*)$/
+export const ANSWER_KEY_HEADER = /^\s*answer(?:s)?\s*(?:key)?\s*:?\s*$/i
+export const INLINE_ANSWER = /^\s*(?:ans(?:wer)?)\s*[:.-]\s*\(?([a-dA-D])\)?\s*$/i
+export const ANSWER_LIST_PAIR = /(\d{1,3})\s*[-:.]\s*\(?([a-dA-D])\)?/gi
 
 export function parseQuizText(rawText) {
   const warnings = []
@@ -68,6 +70,7 @@ export function parseQuizText(rawText) {
         text: qMatch[2].trim(),
         options: {},
         correctOption: null,
+        imageUrl: null,
       }
       continue
     }
@@ -136,5 +139,6 @@ export function makeBlankQuestion() {
     text: '',
     options: { A: '', B: '', C: '', D: '' },
     correctOption: null,
+    imageUrl: null,
   }
 }

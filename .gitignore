@@ -17,6 +17,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Sample/test question-bank files dropped into the project for local testing
+*.pdf
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
