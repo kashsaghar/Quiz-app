@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Copy, Check, BarChart3, LogOut, GraduationCap, Clock, Users } from 'lucide-react'
+import { Plus, Copy, Check, BarChart3, LogOut, GraduationCap, Clock, Users, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import Spinner from '../components/Spinner'
@@ -136,6 +136,12 @@ export default function Dashboard() {
                     <BarChart3 className="h-3.5 w-3.5" /> Results
                   </Link>
                 </div>
+                <Link
+                  to={`/quiz/${quiz.id}/edit`}
+                  className="mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Edit Quiz
+                </Link>
               </div>
             ))}
           </div>

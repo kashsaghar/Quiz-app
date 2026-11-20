@@ -19,7 +19,7 @@ dist-ssr
 
 # Sample/test question-bank files dropped into the project for local testing
 *.pdf
-
+.pdf
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

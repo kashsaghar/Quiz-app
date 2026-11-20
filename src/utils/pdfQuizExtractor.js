@@ -84,7 +84,7 @@ async function renderPageCanvas(page, scale = RENDER_SCALE) {
   return { canvas, viewport }
 }
 
-function cropCanvasToBlob(sourceCanvas, viewport, userYTop, userYBottom, padding = 8) {
+function cropCanvasToBlob(sourceCanvas, viewport, userYTop, userYBottom, padding = 24) {
   const pxTop = viewport.convertToViewportPoint(0, userYTop)[1]
   const pxBottom = viewport.convertToViewportPoint(0, userYBottom)[1]
   const y0 = Math.max(0, Math.floor(Math.min(pxTop, pxBottom) - padding))
@@ -130,12 +130,18 @@ export async function extractQuizFromPdf(file, { onProgress } = {}) {
     if (current) {
       const count = Object.keys(current.options).length
       if (count < 2) {
-        warnings.push(`Question ${current.number}: could not confidently detect its options -- left blank for you to fill in.`)
+        warnings.push(
+          `Question ${current.number}: could not confidently detect its options -- likely shown only in the attached image. Placeholder labels (a/b/c/d) were filled in; please edit them to match the image, or just use the image as-is.`
+        )
         for (const letter of ['A', 'B', 'C', 'D']) {
-          if (!(letter in current.options)) current.options[letter] = ''
+          if (!(letter in current.options)) current.options[letter] = letter.toLowerCase()
         }
       }
-      current.needsDiagram = fragments.length >= MIN_FRAGMENTS_FOR_DIAGRAM || count < 2
+      // Captured now (not read later) because `fragments` is reset for the
+      // NEXT question as soon as this one closes -- reading it after the
+      // fact would silently attribute the wrong question's fragment count.
+      current.fragmentCountAtClose = fragments.length
+      current.hadFewOptions = count < 2
       questions.push(current)
     }
     current = null
@@ -284,36 +290,35 @@ export async function extractQuizFromPdf(file, { onProgress } = {}) {
       }
 
       lines.forEach((line, i) => feedLine(line.text, pageNum, line.y, i === 0))
-
-      // Crop a diagram snapshot for whichever question is still open at the
-      // end of this page, if it looks like it needs one and we have real
-      // (non-OCR) page coordinates to crop with.
-      if (current && current.needsDiagramCheck !== false && current.pageNum === pageNum && current.stemTopY != null) {
-        const wantsDiagram = fragments.length >= MIN_FRAGMENTS_FOR_DIAGRAM
-        if (wantsDiagram) {
-          const bottom = current.firstOptionY ?? current.lastLineY ?? current.stemTopY
-          const { canvas, viewport } = await getPageRenderLazy()
-          current.diagramBlob = await cropCanvasToBlob(canvas, viewport, current.stemTopY, bottom)
-        }
-      }
     }
     pushCurrent()
 
-    // A question whose options all came back blank almost certainly needs
-    // a visual aid too (a table/graph with no distinguishing option text),
-    // even if the fragment-count heuristic above didn't catch it -- crop
-    // its whole block as a last-resort snapshot.
+    // Cropping happens in its own pass, AFTER every question's boundaries
+    // (and its own fragment count) are fully settled -- doing it page by
+    // page while parsing was wrong, since whichever question happened to
+    // still be "open" when a page ended was not necessarily the one that
+    // actually needed a diagram (e.g. a second question starting on the
+    // same page would silently take over the crop, or reset the fragment
+    // count before the real candidate could be checked).
+    const pageRenderCache = new Map()
+    const getPageRenderCached = async (pageNum) => {
+      if (!pageRenderCache.has(pageNum)) {
+        const page = await pdf.getPage(pageNum)
+        pageRenderCache.set(pageNum, await renderPageCanvas(page))
+      }
+      return pageRenderCache.get(pageNum)
+    }
+
     for (const q of questions) {
-      const allBlank = Object.values(q.options).every((v) => !v)
-      if (allBlank && !q.diagramBlob && q.stemTopY != null && q.pageNum) {
-        try {
-          const page = await pdf.getPage(q.pageNum)
-          const { canvas, viewport } = await renderPageCanvas(page)
-          const bottom = q.firstOptionY ?? q.lastLineY ?? q.stemTopY
-          q.diagramBlob = await cropCanvasToBlob(canvas, viewport, q.stemTopY, bottom, 14)
-        } catch {
-          // Best-effort only -- leave diagramBlob null if this fails.
-        }
+      if (q.stemTopY == null || !q.pageNum) continue
+      const wantsDiagram = q.fragmentCountAtClose >= MIN_FRAGMENTS_FOR_DIAGRAM || q.hadFewOptions
+      if (!wantsDiagram) continue
+      try {
+        const { canvas, viewport } = await getPageRenderCached(q.pageNum)
+        const bottom = q.firstOptionY ?? q.lastLineY ?? q.stemTopY
+        q.diagramBlob = await cropCanvasToBlob(canvas, viewport, q.stemTopY, bottom)
+      } catch {
+        // Best-effort only -- leave diagramBlob null if this fails.
       }
     }
   } finally {

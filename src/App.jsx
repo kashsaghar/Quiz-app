@@ -7,6 +7,7 @@ import Spinner from './components/Spinner'
 const AuthPage = lazy(() => import('./pages/AuthPage'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const CreateQuiz = lazy(() => import('./pages/CreateQuiz'))
+const EditQuiz = lazy(() => import('./pages/EditQuiz'))
 const QuizResults = lazy(() => import('./pages/QuizResults'))
 const StudentQuizPage = lazy(() => import('./pages/student/StudentQuizPage'))
 
@@ -37,6 +38,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <CreateQuiz />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/quiz/:quizId/edit"
+              element={
+                <ProtectedRoute>
+                  <EditQuiz />
                 </ProtectedRoute>
               }
             />
