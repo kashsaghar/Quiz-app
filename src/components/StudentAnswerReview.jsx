@@ -1,9 +1,22 @@
-import { X, Check, XCircle, MinusCircle } from 'lucide-react'
+import { useState } from 'react'
+import { X, Check, XCircle, MinusCircle, Download } from 'lucide-react'
+import { downloadStudentResultPdf } from '../utils/studentResultPdf'
 
-export default function StudentAnswerReview({ submission, questions, onClose }) {
+export default function StudentAnswerReview({ quizTitle, submission, questions, onClose }) {
+  const [downloading, setDownloading] = useState(false)
+
   if (!submission) return null
 
   const studentAnswers = submission.answers || {}
+
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      await downloadStudentResultPdf(quizTitle, submission, questions)
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
@@ -19,9 +32,18 @@ export default function StudentAnswerReview({ submission, questions, onClose }) 
               Scored {submission.score} / {submission.total_questions}
             </p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" /> {downloading ? 'Preparing…' : 'Download PDF'}
+            </button>
+            <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">

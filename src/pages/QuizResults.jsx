@@ -220,6 +220,7 @@ export default function QuizResults() {
 
       {selectedSubmissionId && (
         <StudentAnswerReview
+          quizTitle={quiz.title}
           submission={submissions.find((s) => s.id === selectedSubmissionId)}
           questions={questions}
           onClose={() => setSelectedSubmissionId(null)}
