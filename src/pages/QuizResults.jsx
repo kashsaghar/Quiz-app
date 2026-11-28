@@ -4,6 +4,7 @@ import { ArrowLeft, Download, Search, ArrowUpDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { downloadSubmissionsCsv } from '../utils/csvExport'
 import Spinner from '../components/Spinner'
+import StudentAnswerReview from '../components/StudentAnswerReview'
 
 export default function QuizResults() {
   const { quizId } = useParams()
@@ -11,12 +12,14 @@ export default function QuizResults() {
 
   const [quiz, setQuiz] = useState(null)
   const [submissions, setSubmissions] = useState([])
+  const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState('submitted_at')
   const [sortDir, setSortDir] = useState('desc')
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -40,12 +43,34 @@ export default function QuizResults() {
       // teacher's token simply gets an empty result set here.
       const { data: subRows } = await supabase
         .from('submissions')
-        .select('id, student_name, roll_number, score, total_questions, submitted_at')
+        .select('id, student_name, roll_number, answers, score, total_questions, submitted_at')
         .eq('quiz_id', quizId)
+
+      // Needed to show each student's right/wrong breakdown. This only
+      // reads existing questions/answers — nothing here is written or
+      // changed, so current scores and submissions are untouched.
+      const { data: questionRows } = await supabase
+        .from('questions')
+        .select('id, question_text, options, image_url, order_index')
+        .eq('quiz_id', quizId)
+        .order('order_index', { ascending: true })
+
+      const questionIds = (questionRows ?? []).map((q) => q.id)
+      const { data: answerRows } = questionIds.length
+        ? await supabase.from('quiz_answers').select('question_id, correct_option').in('question_id', questionIds)
+        : { data: [] }
+
+      const correctByQuestionId = new Map((answerRows ?? []).map((a) => [a.question_id, a.correct_option]))
 
       if (active) {
         setQuiz(quizRow)
         setSubmissions(subRows ?? [])
+        setQuestions(
+          (questionRows ?? []).map((q) => ({
+            ...q,
+            correctOption: correctByQuestionId.get(q.id) ?? null,
+          }))
+        )
         setLoading(false)
       }
     }
@@ -174,8 +199,12 @@ export default function QuizResults() {
                 </thead>
                 <tbody>
                   {filteredSorted.map((s) => (
-                    <tr key={s.id} className="border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-2.5 font-medium text-slate-900">{s.student_name}</td>
+                    <tr
+                      key={s.id}
+                      onClick={() => setSelectedSubmissionId(s.id)}
+                      className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-indigo-50/50"
+                    >
+                      <td className="px-3 py-2.5 font-medium text-indigo-700 underline-offset-2 hover:underline">{s.student_name}</td>
                       <td className="px-3 py-2.5 text-slate-500">{s.roll_number || 'N/A'}</td>
                       <td className="px-3 py-2.5">{s.score} / {s.total_questions}</td>
                       <td className="px-3 py-2.5">{Math.round(s.percentage)}%</td>
@@ -188,6 +217,14 @@ export default function QuizResults() {
           )}
         </div>
       </main>
+
+      {selectedSubmissionId && (
+        <StudentAnswerReview
+          submission={submissions.find((s) => s.id === selectedSubmissionId)}
+          questions={questions}
+          onClose={() => setSelectedSubmissionId(null)}
+        />
+      )}
     </div>
   )
 }
