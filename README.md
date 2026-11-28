@@ -126,3 +126,41 @@ Answers: 1-A, 2-B
 ```
 
 An inline `Answer: B` directly under a question's options also works instead of a trailing answer-key block. Any question the parser can't confidently match to an answer is flagged in the review step for the teacher to set by hand.
+
+## Theory exam feature (separate from MCQ quizzes above)
+
+A second, independent feature: a teacher uploads a theory exam paper (PDF) and its marking scheme (PDF). Students open a link, download the paper, work it out on their own, then upload a PDF of their worked answer sheet (photographed/scanned pages). A serverless function sends the exam paper + marking scheme + student's answer sheet to Google's Gemini API, which grades it against the marking scheme and returns a mark + per-question feedback, visible only to the teacher.
+
+This feature is entirely additive — it uses its own tables (`theory_exams`, `theory_submissions`), its own storage buckets, and its own routes/pages. It never reads or writes anything in the MCQ tables (`quizzes`, `questions`, `quiz_answers`, `submissions`).
+
+### How the security model works
+
+- **The marking scheme never reaches the browser.** It's stored in a private `marking-schemes` bucket with no read policy for students — only the owning teacher (via RLS) and the grading function (via the Supabase service-role key, which bypasses RLS) can read it.
+- **A student's own uploaded answer sheet can't be read back by them** — the `answer-sheets` bucket only grants SELECT to the owning teacher.
+- **Marks/grading status can never be forged from the client.** `theory_submissions` has no INSERT/UPDATE/DELETE policy for `anon`/`authenticated` at all. The only ways in are the `create_theory_submission()` / `attach_theory_answer_sheet()` RPCs (which never touch marks or status), and the `/api/grade-theory` serverless function, which uses the service-role key.
+- **The Gemini API key and the Supabase service-role key only ever live on the server** (Vercel environment variables, no `VITE_` prefix) — never in the client bundle.
+
+Full policies and comments are in [`supabase/theory_schema.sql`](./supabase/theory_schema.sql); the grading function is [`api/grade-theory.js`](./api/grade-theory.js).
+
+### Setup
+
+1. **Database:** In the Supabase SQL Editor, run [`supabase/theory_schema.sql`](./supabase/theory_schema.sql) (after `schema.sql`). This creates the two new tables, their RLS policies, the three storage buckets (`exam-papers` public; `marking-schemes` and `answer-sheets` private), and the two RPCs. It never modifies or drops anything from `schema.sql`.
+2. **Gemini API key:** Get an API key for your Gemini subscription from [Google AI Studio](https://aistudio.google.com/app/apikey).
+3. **Supabase service-role key:** Project Settings → API → `service_role` key (⚠️ keep this secret — it bypasses every RLS policy).
+4. **Vercel environment variables:** in your Vercel project settings, add (server-side, no `VITE_` prefix so they're never shipped to the browser):
+   - `GEMINI_API_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_URL` — same value as `VITE_SUPABASE_URL`
+   - `GEMINI_MODEL` (optional — defaults to `gemini-2.5-flash`; bump this if a newer/better Gemini model is available by the time you set this up)
+5. Redeploy. The `/api/grade-theory` serverless function is picked up automatically — no separate deployment step.
+
+### Using it
+
+**As a teacher:** Dashboard → "New Theory Exam" → title, total marks, upload the exam paper PDF and the marking scheme PDF → Create. Copy the student link and share it. On the exam's "Results" page, click a student's name to see their mark and Gemini's per-question feedback; a "Grade now"/"Regrade" button lets you (re)trigger grading manually if it's stuck on "Awaiting grading" or "Grading failed".
+
+**As a student:** Open the link → download the exam paper → work it out on paper → photograph/scan your pages and convert them to a single PDF → enter your name (+ optional roll number) → upload that PDF → Submit. You'll only see a "submitted successfully" confirmation — your teacher checks the result.
+
+### Known limitations
+
+- Grading is triggered by the student's browser right after upload (fire-and-forget) rather than by a database webhook, so a closed tab or dropped connection right at submission can occasionally leave a submission stuck at "pending" — the teacher's "Grade now" button handles that.
+- Very large/many-page PDFs (exam paper + marking scheme + answer sheet combined, base64-encoded) can exceed Gemini's inline request size limit or the serverless function's time limit (configured for 60s, but actual cap depends on your Vercel plan) — if that happens the submission is marked "Grading failed" with the error message, and you can retry after compressing the PDF.

@@ -10,6 +10,9 @@ const CreateQuiz = lazy(() => import('./pages/CreateQuiz'))
 const EditQuiz = lazy(() => import('./pages/EditQuiz'))
 const QuizResults = lazy(() => import('./pages/QuizResults'))
 const StudentQuizPage = lazy(() => import('./pages/student/StudentQuizPage'))
+const CreateTheoryExam = lazy(() => import('./pages/CreateTheoryExam'))
+const TheoryExamResults = lazy(() => import('./pages/TheoryExamResults'))
+const TheoryExamPage = lazy(() => import('./pages/student/TheoryExamPage'))
 
 function RootRedirect() {
   const { user, loading } = useAuth()
@@ -58,6 +61,23 @@ export default function App() {
               }
             />
             <Route path="/quiz/:quizId" element={<StudentQuizPage />} />
+            <Route
+              path="/create-theory"
+              element={
+                <ProtectedRoute>
+                  <CreateTheoryExam />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/theory/:examId/results"
+              element={
+                <ProtectedRoute>
+                  <TheoryExamResults />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/theory/:examId" element={<TheoryExamPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
