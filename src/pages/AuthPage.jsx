@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GraduationCap, Loader2 } from 'lucide-react'
+import { GraduationCap, Loader2, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export default function AuthPage() {
@@ -10,6 +10,8 @@ export default function AuthPage() {
   const [mode, setMode] = useState('login') // 'login' | 'signup'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -18,6 +20,12 @@ export default function AuthPage() {
     e.preventDefault()
     setError('')
     setInfo('')
+
+    if (mode === 'signup' && password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
     setSubmitting(true)
 
     const action = mode === 'login' ? signIn(email, password) : signUp(email, password)
@@ -32,6 +40,7 @@ export default function AuthPage() {
     if (mode === 'signup' && !data.session) {
       setInfo('Account created! Check your email to confirm, then log in.')
       setMode('login')
+      setConfirmPassword('')
       return
     }
 
@@ -53,14 +62,21 @@ export default function AuthPage() {
           <div className="mb-5 flex rounded-lg bg-slate-100 p-1 text-sm font-medium">
             <button
               type="button"
-              onClick={() => setMode('login')}
+              onClick={() => {
+                setMode('login')
+                setError('')
+                setConfirmPassword('')
+              }}
               className={`flex-1 rounded-md py-1.5 transition ${mode === 'login' ? 'bg-white shadow text-indigo-700' : 'text-slate-500'}`}
             >
               Log In
             </button>
             <button
               type="button"
-              onClick={() => setMode('signup')}
+              onClick={() => {
+                setMode('signup')
+                setError('')
+              }}
               className={`flex-1 rounded-md py-1.5 transition ${mode === 'signup' ? 'bg-white shadow text-indigo-700' : 'text-slate-500'}`}
             >
               Sign Up
@@ -81,16 +97,53 @@ export default function AuthPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-9 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
+
+            {mode === 'signup' && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Confirm Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-9 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}
             {info && <p className="text-sm text-emerald-600">{info}</p>}
