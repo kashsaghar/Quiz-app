@@ -36,10 +36,10 @@ const RESPONSE_SCHEMA = {
   required: ['totalAwarded', 'totalMarks', 'questions'],
 }
 
-function buildPrompt(totalMarks) {
+function buildPromptWithScheme(totalMarks) {
   return `You are a strict, fair examiner grading a student's handwritten exam answers.
 
-You are given up to three PDF documents, in this order:
+You are given three PDF documents, in this order:
 1. The exam question paper.
 2. The official marking scheme — the ONLY source of truth for correct answers and mark allocation.
 3. The student's scanned/photographed worked answer sheet.
@@ -51,6 +51,29 @@ Grade the student's answers strictly according to the marking scheme. For every 
 - If the handwriting for a question is illegible, award 0 marks and say "Illegible" — never guess at an answer you can't actually read.
 
 The exam is out of ${totalMarks} marks in total. totalAwarded must equal the sum of every question's marksAwarded, and must never exceed ${totalMarks}. Return ONLY the JSON described by the response schema — no extra commentary.`
+}
+
+// Used when the teacher didn't upload a marking scheme. Gemini has to act
+// as its own subject-matter expert: work out the correct/ideal answer for
+// each question from the exam paper itself, decide a fair mark allocation
+// per question (using marks shown on the paper, e.g. "[5 marks]", wherever
+// present), and grade the student against that self-determined standard.
+function buildPromptWithoutScheme(totalMarks) {
+  return `You are a strict, fair, subject-matter-expert examiner grading a student's handwritten exam answers. No marking scheme was provided, so you must act as the examiner AND the marking-scheme author.
+
+You are given two PDF documents, in this order:
+1. The exam question paper.
+2. The student's scanned/photographed worked answer sheet.
+
+For every question on the paper:
+- Work out the correct/ideal answer yourself, using your own subject knowledge.
+- Decide a fair mark allocation for that question. If the paper itself states marks for a question (e.g. "[5 marks]" or "(10)"), use that. Otherwise split the ${totalMarks} total marks across all questions in a way that reflects their apparent length/difficulty (longer, multi-part, or clearly harder questions should be worth more).
+- Find the student's answer for that question on their answer sheet (match by question number) and award marks based on how closely it matches the correct answer, giving partial credit for a partially correct or partially complete response.
+- If the student did not attempt a question, award 0 marks and say "Not attempted" in that question's feedback.
+- If the handwriting for a question is illegible, award 0 marks and say "Illegible" — never guess at an answer you can't actually read.
+- In each question's feedback, briefly state what you decided the correct answer/marking criteria was, since there is no marking scheme to refer back to.
+
+The exam is out of ${totalMarks} marks in total. Every question's marksPossible across the whole exam must sum to exactly ${totalMarks}, and totalAwarded must equal the sum of every question's marksAwarded. Return ONLY the JSON described by the response schema — no extra commentary.`
 }
 
 async function fetchAsBase64(supabaseAdmin, bucket, path) {
@@ -108,17 +131,18 @@ export default async function handler(req, res) {
       .eq('id', submission.exam_id)
       .single()
     if (examError || !exam) throw new Error('Exam not found')
-    if (!exam.marking_scheme_path) throw new Error('This exam has no marking scheme uploaded')
+    if (!exam.exam_paper_url) throw new Error('This exam has no exam paper uploaded')
 
-    const parts = [{ text: buildPrompt(exam.total_marks) }]
+    const hasMarkingScheme = Boolean(exam.marking_scheme_path)
+    const parts = [{ text: hasMarkingScheme ? buildPromptWithScheme(exam.total_marks) : buildPromptWithoutScheme(exam.total_marks) }]
 
-    if (exam.exam_paper_url) {
-      const examPaperB64 = await fetchPublicUrlAsBase64(exam.exam_paper_url)
-      parts.push({ inlineData: { mimeType: 'application/pdf', data: examPaperB64 } })
+    const examPaperB64 = await fetchPublicUrlAsBase64(exam.exam_paper_url)
+    parts.push({ inlineData: { mimeType: 'application/pdf', data: examPaperB64 } })
+
+    if (hasMarkingScheme) {
+      const markingSchemeB64 = await fetchAsBase64(supabaseAdmin, 'marking-schemes', exam.marking_scheme_path)
+      parts.push({ inlineData: { mimeType: 'application/pdf', data: markingSchemeB64 } })
     }
-
-    const markingSchemeB64 = await fetchAsBase64(supabaseAdmin, 'marking-schemes', exam.marking_scheme_path)
-    parts.push({ inlineData: { mimeType: 'application/pdf', data: markingSchemeB64 } })
 
     const answerSheetB64 = await fetchAsBase64(supabaseAdmin, 'answer-sheets', submission.answer_sheet_path)
     parts.push({ inlineData: { mimeType: 'application/pdf', data: answerSheetB64 } })

@@ -17,7 +17,7 @@ export default function CreateTheoryExam() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
-  const canSave = title.trim().length > 0 && Number(totalMarks) > 0 && examPaperFile && markingSchemeFile
+  const canSave = title.trim().length > 0 && Number(totalMarks) > 0 && examPaperFile
 
   const handleSave = async () => {
     setSaveError('')
@@ -81,9 +81,11 @@ export default function CreateTheoryExam() {
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Marking Scheme (PDF) *</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Marking Scheme (PDF) — optional</label>
             <p className="mb-1.5 text-xs text-slate-400">
-              Kept private — only you can see this. It's used to AI-grade each student's worked answers.
+              Kept private — only you can see this. If you have one, grading follows it exactly. If you leave this
+              out, Gemini works out the correct answer and mark allocation for each question itself from the exam
+              paper and {totalMarks || 0} total marks.
             </p>
             <FilePicker file={markingSchemeFile} onPick={setMarkingSchemeFile} icon={ClipboardCheck} />
           </div>

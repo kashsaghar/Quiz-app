@@ -1,9 +1,13 @@
 import { supabase } from '../lib/supabaseClient'
 
-// Uploads a newly created theory exam's paper (public bucket) and marking
-// scheme (private bucket), then points the exam row at both. Called once,
-// right after the theory_exams row itself is inserted (its id is needed for
-// the storage path), mirroring uploadDiagramImages()'s quiz-id-first pattern.
+// Uploads a newly created theory exam's paper (public bucket) and, if
+// provided, its marking scheme (private bucket), then points the exam row
+// at both. Called once, right after the theory_exams row itself is inserted
+// (its id is needed for the storage path), mirroring
+// uploadDiagramImages()'s quiz-id-first pattern.
+//
+// markingSchemeFile is optional -- without one, the grading function falls
+// back to having Gemini work out correct answers and mark allocation itself.
 export async function uploadTheoryExamFiles(examId, examPaperFile, markingSchemeFile) {
   const examPaperPath = `${examId}/paper.pdf`
   const { error: paperError } = await supabase.storage
@@ -13,11 +17,14 @@ export async function uploadTheoryExamFiles(examId, examPaperFile, markingScheme
 
   const { data: publicUrlData } = supabase.storage.from('exam-papers').getPublicUrl(examPaperPath)
 
-  const markingSchemePath = `${examId}/scheme.pdf`
-  const { error: schemeError } = await supabase.storage
-    .from('marking-schemes')
-    .upload(markingSchemePath, markingSchemeFile, { contentType: 'application/pdf', upsert: true })
-  if (schemeError) throw schemeError
+  let markingSchemePath = null
+  if (markingSchemeFile) {
+    markingSchemePath = `${examId}/scheme.pdf`
+    const { error: schemeError } = await supabase.storage
+      .from('marking-schemes')
+      .upload(markingSchemePath, markingSchemeFile, { contentType: 'application/pdf', upsert: true })
+    if (schemeError) throw schemeError
+  }
 
   const { error: updateError } = await supabase
     .from('theory_exams')

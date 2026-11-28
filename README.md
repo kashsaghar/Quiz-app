@@ -129,7 +129,9 @@ An inline `Answer: B` directly under a question's options also works instead of 
 
 ## Theory exam feature (separate from MCQ quizzes above)
 
-A second, independent feature: a teacher uploads a theory exam paper (PDF) and its marking scheme (PDF). Students open a link, download the paper, work it out on their own, then upload a PDF of their worked answer sheet (photographed/scanned pages). A serverless function sends the exam paper + marking scheme + student's answer sheet to Google's Gemini API, which grades it against the marking scheme and returns a mark + per-question feedback, visible only to the teacher.
+A second, independent feature: a teacher uploads a theory exam paper (PDF) and, optionally, its marking scheme (PDF). Students open a link, download the paper, work it out on their own, then upload a PDF of their worked answer sheet (photographed/scanned pages). A serverless function sends the exam paper (+ marking scheme, if one was uploaded) + student's answer sheet to Google's Gemini API, which grades it and returns a mark + per-question feedback, visible only to the teacher.
+
+**Marking scheme is optional.** If the teacher uploads one, Gemini grades strictly against it. If not, Gemini acts as its own subject-matter-expert examiner: it works out the correct answer for each question from the exam paper itself, decides a fair mark allocation per question (using marks printed on the paper where shown, otherwise splitting the exam's total marks by apparent question length/difficulty), and grades the student's answers against that self-determined standard. The per-question feedback says which mode was used so a teacher reviewing results can tell whether a mark came from the real marking scheme or Gemini's own judgment.
 
 This feature is entirely additive — it uses its own tables (`theory_exams`, `theory_submissions`), its own storage buckets, and its own routes/pages. It never reads or writes anything in the MCQ tables (`quizzes`, `questions`, `quiz_answers`, `submissions`).
 
@@ -156,7 +158,7 @@ Full policies and comments are in [`supabase/theory_schema.sql`](./supabase/theo
 
 ### Using it
 
-**As a teacher:** Dashboard → "New Theory Exam" → title, total marks, upload the exam paper PDF and the marking scheme PDF → Create. Copy the student link and share it. On the exam's "Results" page, click a student's name to see their mark and Gemini's per-question feedback; a "Grade now"/"Regrade" button lets you (re)trigger grading manually if it's stuck on "Awaiting grading" or "Grading failed".
+**As a teacher:** Dashboard → "New Theory Exam" → title, total marks, upload the exam paper PDF and (optionally) the marking scheme PDF → Create. Copy the student link and share it. On the exam's "Results" page, click a student's name to see their mark and Gemini's per-question feedback; a "Grade now"/"Regrade" button lets you (re)trigger grading manually if it's stuck on "Awaiting grading" or "Grading failed".
 
 **As a student:** Open the link → download the exam paper → work it out on paper → photograph/scan your pages and convert them to a single PDF → enter your name (+ optional roll number) → upload that PDF → Submit. You'll only see a "submitted successfully" confirmation — your teacher checks the result.
 
